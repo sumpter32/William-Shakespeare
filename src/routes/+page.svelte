@@ -1,23 +1,41 @@
 <script lang="ts">
-	import ChatMessage from '$lib/components/ChatMessage.svelte'
-	import type { ChatCompletionRequestMessage } from 'openai'
-	import { SSE } from 'sse.js'
+  import { onMount } from 'svelte';
+  import ChatMessage from '$lib/components/ChatMessage.svelte'
+  import type { ChatCompletionRequestMessage } from 'openai'
+  import { SSE } from 'sse.js'
 
-	let query: string = ''
-	let answer: string = ''
-	let loading: boolean = false
-	let chatMessages: ChatCompletionRequestMessage[] = []
-	let scrollToDiv: HTMLDivElement
+  function saveChatMessages() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+    }
+  }
+	
+  function loadChatMessages() {
+    if (typeof window !== 'undefined') {
+      const loadedMessages = localStorage.getItem('chatMessages');
+      return loadedMessages ? JSON.parse(loadedMessages) : [];
+    } else {
+      return [];
+    }
+  }
 
-	function scrollToBottom() {
-		setTimeout(function () {
-			scrollToDiv.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
-		}, 100)
-	}
+  let query: string = ''
+  let answer: string = ''
+  let loading: boolean = false
+  export let chatMessages: ChatCompletionRequestMessage[] = []
 
-	const handleSubmit = async () => {
-		loading = true
-		chatMessages = [...chatMessages, { role: 'user', content: query }]
+  let scrollToDiv: HTMLDivElement
+
+  function scrollToBottom() {
+    setTimeout(function () {
+      scrollToDiv.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
+    }, 100)
+  }
+
+  const handleSubmit = async () => {
+    loading = true;
+    chatMessages = [...chatMessages, { role: 'user', content: query }];
+    saveChatMessages();
 
 		const eventSource = new SSE('/api/chat', {
 			headers: {
@@ -37,6 +55,7 @@
 				if (e.data === '[DONE]') {
 					chatMessages = [...chatMessages, { role: 'assistant', content: answer }]
 					answer = ''
+					saveChatMessages() // Save messages after assistant response
 					return
 				}
 
@@ -52,15 +71,20 @@
 		})
 		eventSource.stream()
 		scrollToBottom()
-	}
+  }
 
-	function handleError<T>(err: T) {
-		loading = false
-		query = ''
-		answer = ''
-		console.error(err)
-	}
+  function handleError<T>(err: T) {
+    loading = false
+    query = ''
+    answer = ''
+    console.error(err)
+  }
+
+  onMount(() => {
+    chatMessages = loadChatMessages(); // load chat messages on mount
+  })
 </script>
+
 <style>
 	.parent-container {
       height: 100vh;
